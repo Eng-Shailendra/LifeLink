@@ -17,7 +17,7 @@ dns.setServers([
 connectDB();
 try {
 
-    app.listen(port, () => {
+    const server = app.listen(port, () => {
         console.log(`🚀 Server started successfully on port ${port} `)
         console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
     })
