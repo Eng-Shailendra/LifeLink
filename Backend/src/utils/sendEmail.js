@@ -2,7 +2,7 @@ import nodemailer from "nodemailer";
 import ApiError from "./apiError.js";
 
 
-export const sendMail = async (htmlFromet, email) => {
+export const sendMail = async (data) => {
     const mailTransporter = nodemailer.createTransport({
         service: "gmail",
         auth: {
@@ -11,14 +11,15 @@ export const sendMail = async (htmlFromet, email) => {
         }
     });
     try {
+        console.log("mail data  ", data)
         await mailTransporter.sendMail({
             from: process.env.GMAIL_AUTH_USER,
-            to: email,
-            subject: "To verify access token",
-            html: htmlFromet,
+            to: data.email,
+            subject: data.subject || "To verify access token",
+            html: data.htmlformet,
         })
     } catch (err) {
         console.log(err);
-        throw new ApiError("Getting error on sending  email ")
+        throw new ApiError("Getting error on sending  email ", 400)
     }
 }

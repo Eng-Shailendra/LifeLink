@@ -4,7 +4,7 @@ import ApiError from "../../../utils/apiError.js";
 import { sendMail } from "../../../utils/sendEmail.js";
 import { User } from "../models/auth-model.js"
 import bcrypt from "bcrypt";
-import { accessToken, refreshToken } from "../../../utils/generateToken.js"
+import generateAuthToken from "../../../utils/generateToken.js"
 import { verificationEmailTemplate } from "../../../utils/templates/email-template.js";
 import { createVerification, verifyCode } from "../../../utils/verification.js";
 
@@ -35,8 +35,13 @@ export const register = wrapAsync(async (req, res) => {
 
     const verifyUrl = `${process.env.CLIENT_URL}/verify-email/${token}`
 
-    const htmlforment = verificationEmailTemplate(user._id, verifyUrl)
-    await sendMail(htmlforment, user.email);
+    const htmlformet = verificationEmailTemplate(user._id, verifyUrl)
+    await sendMail({
+        htmlformet,
+        subject: "Verification email",
+        email: user.email
+
+    });
 
     // accessToken(user._id);
     // refreshToken(user._id);
@@ -60,7 +65,33 @@ export const verifyEmail = wrapAsync(async (req, res) => {
 
 
 export const login = wrapAsync(async (req, res) => {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email })
+    if (!user) throw new ApiError("Invalid eamil user not found ", 400);
+    if (!user.password) throw new ApiError("This account uses social login. Please log in with Google.", 400);
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) throw new ApiError("Password Invalid password ");
 
+    if (!user.isEmailVerified) throw new ApiError("Please verify email before login ", 403);
+
+    // !2fA
+    if (!user.twoFactorEnabled) {
+        const token = generateAuthToken(user._id);
+        return res.status(200).json({
+            success: true,
+            requiresOtp: false,
+            token,
+            user: { id: user._id, name: user.name, email: user.email },
+        });
+    }
+
+    const otp = await createVerification(user._id, "loginOtp", { isOtp: true, expiresInMinutes: 5 });
+    await sendMail({
+        htmlformet: `<p>Your login verification code is:</p><h2>${otp}</h2><p>Expires in 5 minutes.</p>`,
+        subject: "Your Life-Link login code",
+        email: user.email,
+    })
+    return res.status(200).json({ success: true,  requiresOtp: true, message: "OTP sent to your email" });
 })
 
 export const forgetPassword = wrapAsync(async (req, res) => {
@@ -72,6 +103,18 @@ export const sendEmailOtp = wrapAsync(async (req, res) => {
 })
 
 export const verifyEmailOtp = wrapAsync(async (req, res) => {
+    const { type, otp, email } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) throw new ApiError("Invalid email or OTP", 400);
+
+    await verifyCode("type", otp, user._id); // userId passed since we already know it
+
+    const token = generateAuthToken(user._id);
+    return {
+        token,
+        user: { id: user._id, name: user.name, email: user.email },
+    };
 
 })
 
