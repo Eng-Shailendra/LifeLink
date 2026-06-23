@@ -8,8 +8,8 @@ router.post("/register", authController.register);
 router.post("/verify-email/:token", authController.verifyEmail);
 router.post("/login", authController.login);
 router.post("/forget-password", authController.forgetPassword);
-router.post("/send-otp", authController.sendEmailOtp);
-router.post("/verify-otp", authController.verifyEmailOtp);
+router.post("/verify-otp/:id", authController.verifyEmailOtp);
+router.post("/update-password/:id", authController.updatePassword)
 
 export default router;
 

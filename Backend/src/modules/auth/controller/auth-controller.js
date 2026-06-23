@@ -10,6 +10,7 @@ import { createVerification, verifyCode } from "../../../utils/verification.js";
 
 
 
+
 export const register = wrapAsync(async (req, res) => {
     const { name, email, password } = req.body;
     if (!name || !email || !password) {
@@ -62,8 +63,6 @@ export const verifyEmail = wrapAsync(async (req, res) => {
     })
 })
 
-
-
 export const login = wrapAsync(async (req, res) => {
     const { email, password } = req.body;
     const user = await User.findOne({ email })
@@ -91,35 +90,61 @@ export const login = wrapAsync(async (req, res) => {
         subject: "Your Life-Link login code",
         email: user.email,
     })
-    return res.status(200).json({ success: true,  requiresOtp: true, message: "OTP sent to your email" });
+    return res.status(200).json({ success: true, requiresOtp: true, message: "OTP sent to your email" });
 })
 
 export const forgetPassword = wrapAsync(async (req, res) => {
-
+    const { email } = req.body;
+    if (!email) throw new ApiError("invalid detail ")
+    const user = await User.findOne({ email });
+    if (!user) throw new ApiError("Not found any user from this email ");
+    const otp = await createVerification(user._id, "passwordReset", { isOtp: true, expiresInMinutes: 5 });
+    await sendMail({
+        htmlformet: `<p>Your login verification code is:</p><h2>${otp}</h2><p>Expires in 5 minutes.</p>`,
+        subject: "Your Life-Link login code",
+        email: user.email,
+    })
+    res.status(200).json({
+        success: true,
+        message: "OTP sent to your email",
+        data: user._id
+    })
 })
 
-export const sendEmailOtp = wrapAsync(async (req, res) => {
-
-})
 
 export const verifyEmailOtp = wrapAsync(async (req, res) => {
-    const { type, otp, email } = req.body;
+    const { id } = req.params;
+    const { type, otp, } = req.body;
 
-    const user = await User.findOne({ email });
-    if (!user) throw new ApiError("Invalid email or OTP", 400);
+    const user = await User.findById(id);
+    if (!user) throw new ApiError("User not found", 400);
 
-    await verifyCode("type", otp, user._id); // userId passed since we already know it
+    await verifyCode(id, type, otp,); // userId passed since we already know it
 
-    const token = generateAuthToken(user._id);
-    return {
+    const token = generateAuthToken(id);
+    return res.status(200).json({
+        success: true,
         token,
+        message: "Verification successfull",
         user: { id: user._id, name: user.name, email: user.email },
-    };
+    });
 
 })
 
 export const updatePassword = wrapAsync(async (req, res) => {
+    const { id } = req.params;
+    const { newPassword, matchedPassword } = req.body;
 
+    if (newPassword !== matchedPassword) throw new ApiError("Password is not matching");
+    const salt = await bcrypt.genSalt(10);
+    const increptedPassword = await bcrypt.hash(newPassword, salt);
+
+    await User.findByIdAndUpdate({ _id: id }, { password: increptedPassword });
+
+    return res.status(200).json({
+        success: true,
+        message: "Passsword change successfully",
+    })
 })
 
 
